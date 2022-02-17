@@ -7,7 +7,17 @@ import torchvision.models as models
 import torchvision.utils as utils
 
 import matplotlib.pyplot as plt
+import sys
+import json
+from google.cloud import storage
 
+
+experiment=" NST Alpha Dog"
+simpName="alpha-dog"
+bucketUrlPrefix='https://storage.googleapis.com/alpha-flake-output/'
+
+f = open('paradata.json')
+jblob = json.load(f)
 
 class VGG_19(nn.Module):
 	def __init__(self):
@@ -15,13 +25,13 @@ class VGG_19(nn.Module):
 		# model used: VGG19 (like in the paper)
 		# everything after the 28th layer is technically not needed
 		self.model = models.vgg19(pretrained=True).features[:30]
-		
+
 		# better results when changing the MaxPool layers to AvgPool (-> paper)
 		for i, _ in enumerate(self.model):
 			# Indicies of the MaxPool layers -> replaced by AvgPool  with same parameters
 			if i in [4, 9, 18, 27]:
 				self.model[i] = nn.AvgPool2d(kernel_size=2, stride=2, padding=0)
-		
+
 	def forward(self, x):
 		features = []
 
@@ -40,6 +50,7 @@ def load_img(path_to_image, img_size):
 	])
 	img = Image.open(path_to_image)
 	img = transform(img).unsqueeze(0)
+	#print("\n\n\n",dir(img),"\n\n\n")
 	return img
 
 
@@ -85,7 +96,7 @@ def transfer_style(iterations, optimizer, alpha, beta, generated_image, content_
 				plt.figure(figsize=(10, 10))
 				plt.imshow(generated_image.permute(0, 2, 3, 1)[0].cpu().detach().numpy())
 				plt.show()
-	
+
 	return generated_image
 
 	#if iter % 500 == 0:
@@ -94,10 +105,16 @@ def transfer_style(iterations, optimizer, alpha, beta, generated_image, content_
 
 
 if __name__ == '__main__':
+	print(sys.argv)
+	content_path=sys.argv[1]
+	style_path=sys.argv[2]
+	job_uuid=sys.argv[3]
+	out_path=job_uuid + ".png"
+
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-	content_img = load_img('./content_images/alisha.jpg', 512).to(device)
-	style_img = load_img('./style_images/dog_abstract_style.jpg', 512).to(device)
+	content_img = load_img(content_path, 512).to(device)
+	style_img = load_img(style_path, 512).to(device)
 
 	model = VGG_19().to(device)
 	# freeze parameters
@@ -118,14 +135,55 @@ if __name__ == '__main__':
 
 	optimizer = optim.Adam([generated_init], lr=lr)
 
-	generated_image = transfer_style(iterations=iterations, 
-					optimizer=optimizer, 
-					alpha=alpha, 
-					beta=beta, 
-					generated_image=generated_init, 
-					content_image=content_img, 
-					style_image=style_img, 
+	generated_image = transfer_style(iterations=iterations,
+					optimizer=optimizer,
+					alpha=alpha,
+					beta=beta,
+					generated_image=generated_init,
+					content_image=content_img,
+					style_image=style_img,
 					show_images=False		# only true in jupyter notebook
 					)
 
-	utils.save_image(generated_image, f'./gen.png')
+	utils.save_image(generated_image, out_path)
+
+	# Success - Save Everything => :
+	client = storage.Client()
+	bucket = client.get_bucket('alpha-flake-output')
+	bucketRoot = 'experiment-'+simpName+'/'+job_uuid+'/'
+
+	fOut = bucketRoot + job_uuid + ".png"
+	fContent = bucketRoot + job_uuid + "-content.png"
+	fStyle = bucketRoot + job_uuid + "-style.png"
+
+	blob = bucket.blob(fOut)
+	blob.upload_from_filename(filename=out_path)
+
+	blob = bucket.blob(fContent)
+	blob.upload_from_filename(filename=content_path)
+
+	blob = bucket.blob(fStyle)
+	blob.upload_from_filename(filename=style_path)
+
+	newDat={
+	    'experiment':experiment,
+	    'nst':{
+			'iterations':str(iterations),
+			'alpha':str(alpha),
+			'beta':str(beta),
+			'learn rate':str(lr),
+			'image prompt':bucketUrlPrefix + fContent,
+			'style prompt':bucketUrlPrefix + fStyle
+		},
+	    'url': bucketUrlPrefix + fOut,
+	    'uuid':job_uuid,
+	}
+	
+	jblob['data'].append(newDat)
+
+	with open('paradata.json', 'w', encoding='utf-8') as ff:
+	  json.dump(jblob, ff, ensure_ascii=False, indent=4)
+
+	blob = bucket.blob('experiment-viewer/paradata.json')
+	blob.cache_control="no-store"
+	blob.upload_from_filename('./paradata.json')
