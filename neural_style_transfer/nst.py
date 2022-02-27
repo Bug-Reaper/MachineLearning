@@ -112,9 +112,9 @@ if __name__ == '__main__':
 	out_path=job_uuid + ".png"
 
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-	content_img = load_img(content_path, 512).to(device)
-	style_img = load_img(style_path, 512).to(device)
+	#2560 - 2048
+	content_img = load_img(content_path, 2560).to(device)
+	style_img = load_img(style_path, 2560).to(device)
 
 	model = VGG_19().to(device)
 	# freeze parameters
@@ -173,7 +173,8 @@ if __name__ == '__main__':
 			'beta':str(beta),
 			'learn rate':str(lr),
 			'image prompt':bucketUrlPrefix + fContent,
-			'style prompt':bucketUrlPrefix + fStyle
+			'style prompt':bucketUrlPrefix + fStyle,
+			'model':'vgg16'
 		},
 	    'url': bucketUrlPrefix + fOut,
 	    'uuid':job_uuid,
