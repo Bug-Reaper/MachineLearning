@@ -163,11 +163,11 @@ if __name__ == '__main__':
 	blob.upload_from_filename(filename=out_path)
 
 	blob = bucket.blob(fContent)
-	if !blob.exists():
+	if not blob.exists():
 		blob.upload_from_filename(filename=content_path)
 
 	blob = bucket.blob(fStyle)
-	if !blob.exists():
+	if not blob.exists():
 		blob.upload_from_filename(filename=style_path)
 
 	newDat={
