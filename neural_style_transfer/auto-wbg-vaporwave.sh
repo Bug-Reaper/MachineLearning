@@ -12,5 +12,5 @@ for ((i=0; i<${#vw[@]}; i++)); do
     printf "\n🔑 New Job Dis UUID: [$uuid]\n"
     printf "🤺 Style Image => [$vwimg]\n"
     printf "☃️ Snow Image => [$wbgimg]\n"
-    sleep .02s
+    poetry run python vaporwave-wbg.py "$wbgimg" "$vwimg" "$uuid"
 done
